@@ -5,6 +5,7 @@ description = "ETL de tabelas TUSS da ANS para banco de consultas."
 requires-python = ">=3.12"
 dependencies = [
     "polars>=1.0",
+    "fastexcel>=0.10",
 ]
 
 [dependency-groups]
@@ -12,6 +13,7 @@ dev = [
     "pytest>=8.0",
     "ruff>=0.6",
     "mypy>=1.11",
+    "xlsxwriter>=3.0",
 ]
 
 [build-system]
@@ -25,6 +27,9 @@ packages = ["src/etl_tuss"]
 line-length = 100
 target-version = "py312"
 src = ["src", "tests"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["PLR2004"]  # valores literais em asserts de teste são aceitáveis
 
 [tool.ruff.lint]
 select = [
@@ -44,6 +49,10 @@ strict = true
 disallow_any_explicit = true
 warn_unreachable = true
 files = ["src", "tests"]
+
+[[tool.mypy.overrides]]
+module = ["fastexcel", "xlsxwriter", "xlsxwriter.*"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

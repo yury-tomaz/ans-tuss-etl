@@ -56,3 +56,13 @@ def test_unknown_xlsx_raises(tmp_path: Path) -> None:
     _write_xlsx(tmp_path / "planilha aleatoria.xlsx", ["Capa", "Dados"])
     with pytest.raises(ValueError, match="não reconhecido"):
         discover_sheet_sources(tmp_path)
+
+
+def test_missing_release_dir_raises(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="não encontrado"):
+        discover_sheet_sources(tmp_path / "inexistente")
+
+
+def test_release_without_xlsx_raises(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="nenhuma planilha"):
+        discover_sheet_sources(tmp_path)

@@ -28,11 +28,15 @@ class SheetSource:
 
 def discover_sheet_sources(release_dir: Path) -> list[SheetSource]:
     """Uma fonte por (arquivo, aba de dados) do release, ordenada por tabela."""
+    if not release_dir.is_dir():
+        raise ValueError(f"diretório do release não encontrado: {release_dir}")
     sources: list[SheetSource] = []
     for xlsx_path in sorted(release_dir.rglob("*.xlsx")):
         if _is_ignored(xlsx_path.name):
             continue
         sources.extend(_sources_from_file(xlsx_path))
+    if not sources:
+        raise ValueError(f"nenhuma planilha de terminologia encontrada em {release_dir}")
     return sorted(sources, key=_sort_key)
 
 

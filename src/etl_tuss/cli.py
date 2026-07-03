@@ -6,6 +6,7 @@ PostgreSQL. Não migra o schema — isso é um passo separado (ADR 0007).
 
 import argparse
 import os
+import sys
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -21,7 +22,11 @@ _DEFAULT_DSN = "postgres://tuss:tuss@localhost:5432/tuss"
 def main(argv: Sequence[str] | None = None) -> int:
     """Extrai o release para o staging e carrega no PostgreSQL."""
     args = _parse_args(argv)
-    report = _run_pipeline(args.release_dir, args.staging, args.versao, args.dsn)
+    try:
+        report = _run_pipeline(args.release_dir, args.staging, args.versao, args.dsn)
+    except ValueError as error:
+        print(f"erro: {error}", file=sys.stderr)
+        return 1
     print(_format_report(args.versao, report))
     return 0
 

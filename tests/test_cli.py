@@ -53,3 +53,8 @@ def test_main_writes_staging_parquet(conn: psycopg.Connection[TupleRow], tmp_pat
     staging = tmp_path / "staging"
     main([str(release), "202601", "--staging", str(staging), "--dsn", _test_dsn()])
     assert (staging / "versao=202601" / "tab_18.parquet").exists()
+
+
+def test_main_missing_release_returns_error(tmp_path: Path) -> None:
+    code = main([str(tmp_path / "inexistente"), "202601", "--staging", str(tmp_path / "staging")])
+    assert code == 1

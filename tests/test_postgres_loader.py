@@ -1,17 +1,11 @@
-import os
-from collections.abc import Iterator
 from datetime import date
 from pathlib import Path
 
 import polars as pl
 import psycopg
-import pytest
 from psycopg.rows import TupleRow
 
 from etl_tuss.postgres_loader import load_parquet, upsert_frame
-
-_DEFAULT_DSN = "postgres://tuss:tuss@localhost:5432/tuss"
-_MIGRATION = Path("migrations/0001_terminologias")
 
 _SCHEMA = {
     "versao": pl.String,
@@ -41,26 +35,6 @@ def _termo_frame(termo: str, row_hash: str) -> pl.DataFrame:
         },
         schema=_SCHEMA,
     )
-
-
-def _run_script(conn: psycopg.Connection[TupleRow], path: Path) -> None:
-    for statement in path.read_text().split(";"):
-        if statement.strip():
-            conn.execute(statement.encode())
-    conn.commit()
-
-
-@pytest.fixture
-def conn() -> Iterator[psycopg.Connection[TupleRow]]:
-    dsn = os.environ.get("TUSS_TEST_DSN", _DEFAULT_DSN)
-    try:
-        connection = psycopg.connect(dsn, connect_timeout=2)
-    except psycopg.OperationalError:
-        pytest.skip("PostgreSQL de teste indisponível")
-    _run_script(connection, _MIGRATION.with_suffix(".down.sql"))
-    _run_script(connection, _MIGRATION.with_suffix(".up.sql"))
-    yield connection
-    connection.close()
 
 
 def _count(conn: psycopg.Connection[TupleRow]) -> int:

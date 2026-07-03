@@ -25,7 +25,9 @@ CORE_COLUMNS: tuple[str, ...] = tuple(field.name for field in fields(TussTermo))
 
 _LABEL_TO_CANONICAL = {
     "Código do Termo": "codigo",
+    "Código": "codigo",  # Tab 63 (Grupos de procedimentos)
     "Termo": "termo",
+    "Grupo": "termo",  # Tab 63: o nome do grupo é o termo do núcleo
     "Descrição Detalhada do Termo": "descricao",
     "Descrição Detalhada": "descricao",
     "Descrição detalhada": "descricao",

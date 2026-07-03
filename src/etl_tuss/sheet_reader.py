@@ -13,7 +13,7 @@ import polars as pl
 _COVER_SHEET_PREFIXES = ("capa",)
 _INDEX_SHEET_NAMES = ("índice", "indice")
 _METADATA_SHEET_MARKER = "lista de terminologias"
-_HEADER_MARKER = "Código do Termo"
+_HEADER_MARKER_PREFIX = "Código"  # "Código do Termo" no núcleo; "Código" na Tab 63
 _HEADER_SCAN_ROWS = 8
 
 
@@ -56,10 +56,12 @@ def _read_sheet_as_text(xlsx_path: Path, sheet_name: str) -> pl.DataFrame:
 def _locate_header_row(raw: pl.DataFrame) -> int:
     marker_column = raw.get_column(raw.columns[0])
     for index in range(min(_HEADER_SCAN_ROWS, raw.height)):
-        if marker_column[index] == _HEADER_MARKER:
+        value = marker_column[index]
+        if value is not None and str(value).startswith(_HEADER_MARKER_PREFIX):
             return index
     raise ValueError(
-        f"cabeçalho '{_HEADER_MARKER}' não encontrado nas primeiras {_HEADER_SCAN_ROWS} linhas"
+        f"cabeçalho iniciando por '{_HEADER_MARKER_PREFIX}' não encontrado "
+        f"nas primeiras {_HEADER_SCAN_ROWS} linhas"
     )
 
 

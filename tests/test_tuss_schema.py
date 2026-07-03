@@ -61,3 +61,26 @@ def test_normalize_core_empty_or_null_date_becomes_null() -> None:
     frame = normalize_core(_sheet())
     assert frame["fim_vigencia"].to_list() == [None, date(2020, 5, 5)]
     assert frame["fim_implantacao"].to_list() == [date(2014, 8, 31), None]
+
+
+def test_normalize_core_accepts_grupo_variant() -> None:
+    sheet = pl.DataFrame(
+        {
+            "Código": ["001"],
+            "Grupo": ["ANATOMIA PATOLÓGICA"],
+            "Data de início de vigência": ["2012-10-10 00:00:00"],
+            "Data de fim de vigência": [None],
+            "Data de fim de implantação": [None],
+        },
+        schema={
+            "Código": pl.String,
+            "Grupo": pl.String,
+            "Data de início de vigência": pl.String,
+            "Data de fim de vigência": pl.String,
+            "Data de fim de implantação": pl.String,
+        },
+    )
+    frame = normalize_core(sheet)
+    assert frame.columns == list(CORE_COLUMNS)
+    assert frame["codigo"].to_list() == ["001"]
+    assert frame["termo"].to_list() == ["ANATOMIA PATOLÓGICA"]

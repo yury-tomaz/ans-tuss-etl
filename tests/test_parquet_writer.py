@@ -4,7 +4,7 @@ from pathlib import Path
 import polars as pl
 from polars.testing import assert_frame_equal
 
-from etl_tuss.parquet_writer import write_staging_parquet
+from etl_tuss.parquet_writer import write_extension_parquet, write_staging_parquet
 
 _SCHEMA = {
     "versao": pl.String,
@@ -58,4 +58,15 @@ def test_overwrite_is_idempotent(tmp_path: Path) -> None:
     path = write_staging_parquet(_frame(), tmp_path, "202601", "23")
     parquets = list((tmp_path / "versao=202601").glob("*.parquet"))
     assert parquets == [path]
+    assert_frame_equal(pl.read_parquet(path), _frame())
+
+
+def test_extension_writes_to_ext_path(tmp_path: Path) -> None:
+    path = write_extension_parquet(_frame(), tmp_path, "202601", "medicamento")
+    assert path == tmp_path / "versao=202601" / "ext_medicamento.parquet"
+    assert path.exists()
+
+
+def test_extension_round_trip_preserves_frame(tmp_path: Path) -> None:
+    path = write_extension_parquet(_frame(), tmp_path, "202601", "opme")
     assert_frame_equal(pl.read_parquet(path), _frame())

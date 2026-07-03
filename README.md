@@ -7,18 +7,13 @@ uma API de consultas. A API não faz parte deste repositório.
 ## Visão geral
 
 ```
-ingestão (planilhas TUSS da ANS) → normalização → Parquet (staging) → PostgreSQL
+planilhas TUSS da ANS → normalização → Parquet (staging) → PostgreSQL
 ```
 
-- A transformação acontece em **Polars** (ETL), não em SQL. O SQL entra só na
-  carga: `COPY` para uma tabela temporária e upsert idempotente.
-- O staging intermediário é **Parquet tipado**, particionado por versão do
-  release (`versao=<v>/`).
-- A carga é **idempotente e versionada por snapshot**: recarregar a mesma versão
-  não duplica nem reescreve linha inalterada; versões diferentes coexistem no
-  banco.
-
-As decisões de arquitetura estão registradas em [`docs/adr/`](docs/adr/).
+O pipeline lê os `.xlsx` de um release da ANS, normaliza para um schema tipado,
+grava um staging em Parquet particionado por versão (`versao=<v>/`) e carrega no
+PostgreSQL. A carga é idempotente: recarregar uma versão atualiza apenas o que
+mudou, e versões diferentes coexistem no banco.
 
 ## Stack
 
@@ -70,9 +65,6 @@ versao=202601 carregada:
   opme: 1388442 inseridas, 0 atualizadas, 0 inalteradas
 ```
 
-Ao recarregar, `inseridas`/`atualizadas` refletem só o que mudou desde a última
-carga (comparação por hash de conteúdo); o resto conta como `inalteradas`.
-
 **Argumentos e opções:**
 
 | Argumento          | Descrição                                                        |
@@ -82,23 +74,19 @@ carga (comparação por hash de conteúdo); o resto conta como `inalteradas`.
 | `--staging <dir>`  | raiz do staging Parquet (padrão: `./staging`)                    |
 | `--dsn <dsn>`      | DSN do PostgreSQL (padrão: env `TUSS_DSN` ou o compose local)    |
 
-O comando **não** migra o schema — isso é um passo separado (ver Setup e o
-[ADR 0007](docs/adr/0007-carga-no-postgres.md)).
+O comando não aplica migrations; garanta o schema criado (passo 3 do Setup)
+antes de carregar.
 
 ## Modelo de dados
 
-Modelo **híbrido** (ver [ADR 0006](docs/adr/0006-modelo-de-dados-hibrido.md)):
-um núcleo unificado cobre a maioria das terminologias, e tabelas de extensão
-guardam os atributos ricos.
+| Tabela             | Conteúdo                                                        |
+| ------------------ | -------------------------------------------------------------- |
+| `tuss_termo`       | código, termo, descrição e datas de vigência                   |
+| `tuss_medicamento` | atributos da Tab 20: apresentação, laboratório, registro ANVISA |
+| `tuss_opme`        | atributos da Tab 19: modelo, fabricante, classe de risco, etc. |
 
-| Tabela             | Conteúdo                                                       |
-| ------------------ | ------------------------------------------------------------- |
-| `tuss_termo`       | núcleo: código, termo, descrição e datas de vigência          |
-| `tuss_medicamento` | extensão da Tab 20: apresentação, laboratório, registro ANVISA |
-| `tuss_opme`        | extensão da Tab 19: modelo, fabricante, classe de risco, etc. |
-
-Chave `(versao, tabela, codigo)` em todas; as extensões referenciam o núcleo por
-FK na mesma chave.
+Todas têm chave `(versao, tabela, codigo)`; `tuss_medicamento` e `tuss_opme`
+referenciam `tuss_termo` por essa chave.
 
 Exemplos de consulta:
 
@@ -120,23 +108,10 @@ WHERE tabela = '22' AND fim_vigencia IS NULL;
 ## Estrutura do projeto
 
 ```
-src/etl_tuss/
-├── sheet_reader.py           # lê a aba de dados, pula preâmbulo, aplica cabeçalho
-├── tuss_schema.py            # normaliza o núcleo (rótulos → campos canônicos)
-├── medicamento_schema.py     # normaliza a extensão de medicamentos (Tab 20)
-├── opme_schema.py            # normaliza a extensão de OPME (Tab 19)
-├── content_hash.py           # row_hash SHA-256 para CDC/upsert
-├── terminology_assembler.py  # monta o núcleo de uma aba (+ versao/tabela/hash)
-├── extension_assembler.py    # monta as extensões ricas
-├── parquet_writer.py         # escrita atômica do staging em Parquet
-├── release_sources.py        # descobre as fontes de um release por convenção
-├── release_extractor.py      # orquestra a extração do release → staging
-├── postgres_loader.py        # COPY + upsert idempotente por row_hash
-├── release_loader.py         # carrega o staging inteiro em ordem segura de FK
-└── cli.py                    # entrypoint: extrai + carrega
-migrations/                   # migrations SQL (golang-migrate)
-docs/adr/                     # decisões de arquitetura
-data/                         # dados não versionados (ver data/README.md)
+src/etl_tuss/   # módulos do pipeline (extração, normalização, carga, CLI)
+migrations/     # migrations SQL (golang-migrate)
+docs/adr/       # decisões de arquitetura
+data/           # dados não versionados (ver data/README.md)
 ```
 
 ## Desenvolvimento
@@ -148,15 +123,14 @@ uv run ruff format     # formata
 uv run mypy            # checagem de tipos (strict)
 ```
 
-Testes de integração exigem o PostgreSQL de pé; quando o banco está indisponível,
-eles são **pulados** (a suíte segue verde). Eles recriam o schema do banco de
-teste, então rodá-los apaga dados carregados no mesmo banco — basta repopular com
-o CLI.
+Os testes de integração exigem o PostgreSQL de pé; quando o banco está
+indisponível, são pulados. Eles recriam o schema do banco, então rodá-los apaga
+dados carregados — basta repopular com o CLI.
 
 ### Migrations
 
 ```bash
-# aplicar / reverter tudo
+# aplicar / reverter
 mise exec -- migrate -path migrations -database "$DSN" up
 mise exec -- migrate -path migrations -database "$DSN" down -all
 
@@ -168,3 +142,7 @@ mise exec -- migrate create -ext sql -dir migrations -seq <nome>
 
 Os dados não são versionados no git; são reproduzíveis por download da ANS. Ver
 [`data/README.md`](data/README.md) para origem e layout.
+
+## Arquitetura
+
+As decisões de arquitetura estão registradas em [`docs/adr/`](docs/adr/).

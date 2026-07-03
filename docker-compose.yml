@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: tuss
+      POSTGRES_PASSWORD: tuss
+      POSTGRES_DB: tuss
+    ports:
+      - "5432:5432"
+    volumes:
+      - tuss_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tuss -d tuss"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  tuss_pgdata:

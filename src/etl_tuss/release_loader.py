@@ -2,7 +2,7 @@
 
 Carrega os Parquets de núcleo (``tab_*.parquet``) em ``tuss_termo`` antes das
 extensões ricas, cuja FK exige o termo já presente. Devolve um relatório tipado
-com as linhas afetadas por tabela de destino.
+com inseridas/atualizadas/inalteradas por tabela de destino.
 """
 
 from dataclasses import dataclass
@@ -11,7 +11,7 @@ from pathlib import Path
 import psycopg
 from psycopg.rows import TupleRow
 
-from etl_tuss.postgres_loader import load_parquet
+from etl_tuss.postgres_loader import UpsertResult, load_parquet
 
 _MEDICAMENTO_PARQUET = "ext_medicamento.parquet"
 _OPME_PARQUET = "ext_opme.parquet"
@@ -19,9 +19,9 @@ _OPME_PARQUET = "ext_opme.parquet"
 
 @dataclass(frozen=True)
 class LoadReport:
-    termo: int
-    medicamento: int
-    opme: int
+    termo: UpsertResult
+    medicamento: UpsertResult
+    opme: UpsertResult
 
 
 def load_release(
@@ -29,7 +29,7 @@ def load_release(
     staging_root: Path,
     versao: str,
 ) -> LoadReport:
-    """Carrega o staging da versão (núcleo e depois extensões) e relata as linhas afetadas."""
+    """Carrega o staging da versão (núcleo e depois extensões) e relata o resultado."""
     version_dir = staging_root / f"versao={versao}"
     return LoadReport(
         termo=_load_core(conn, version_dir),
@@ -38,10 +38,11 @@ def load_release(
     )
 
 
-def _load_core(conn: psycopg.Connection[TupleRow], version_dir: Path) -> int:
-    return sum(
-        load_parquet(conn, path, "tuss_termo") for path in sorted(version_dir.glob("tab_*.parquet"))
-    )
+def _load_core(conn: psycopg.Connection[TupleRow], version_dir: Path) -> UpsertResult:
+    total = UpsertResult(0, 0, 0)
+    for path in sorted(version_dir.glob("tab_*.parquet")):
+        total += load_parquet(conn, path, "tuss_termo")
+    return total
 
 
 def _load_extension(
@@ -49,8 +50,8 @@ def _load_extension(
     version_dir: Path,
     filename: str,
     table: str,
-) -> int:
+) -> UpsertResult:
     path = version_dir / filename
     if not path.exists():
-        return 0
+        return UpsertResult(0, 0, 0)
     return load_parquet(conn, path, table)

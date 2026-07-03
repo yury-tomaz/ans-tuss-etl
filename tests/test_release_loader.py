@@ -5,6 +5,7 @@ import polars as pl
 import psycopg
 from psycopg.rows import TupleRow
 
+from etl_tuss.postgres_loader import UpsertResult
 from etl_tuss.release_loader import LoadReport, load_release
 
 _CORE_SCHEMA = {
@@ -84,14 +85,22 @@ def test_load_release_loads_core_then_extensions(
 ) -> None:
     staging = _write_staging(tmp_path / "staging", with_extensions=True)
     report = load_release(conn, staging, "202601")
-    assert report == LoadReport(termo=3, medicamento=1, opme=1)
+    assert report == LoadReport(
+        termo=UpsertResult(inserted=3, updated=0, unchanged=0),
+        medicamento=UpsertResult(inserted=1, updated=0, unchanged=0),
+        opme=UpsertResult(inserted=1, updated=0, unchanged=0),
+    )
 
 
 def test_load_release_is_idempotent(conn: psycopg.Connection[TupleRow], tmp_path: Path) -> None:
     staging = _write_staging(tmp_path / "staging", with_extensions=True)
     load_release(conn, staging, "202601")
     report = load_release(conn, staging, "202601")
-    assert report == LoadReport(termo=0, medicamento=0, opme=0)
+    assert report == LoadReport(
+        termo=UpsertResult(inserted=0, updated=0, unchanged=3),
+        medicamento=UpsertResult(inserted=0, updated=0, unchanged=1),
+        opme=UpsertResult(inserted=0, updated=0, unchanged=1),
+    )
 
 
 def test_load_release_without_extensions(
@@ -99,4 +108,8 @@ def test_load_release_without_extensions(
 ) -> None:
     staging = _write_staging(tmp_path / "staging", with_extensions=False)
     report = load_release(conn, staging, "202601")
-    assert report == LoadReport(termo=3, medicamento=0, opme=0)
+    assert report == LoadReport(
+        termo=UpsertResult(inserted=3, updated=0, unchanged=0),
+        medicamento=UpsertResult(0, 0, 0),
+        opme=UpsertResult(0, 0, 0),
+    )

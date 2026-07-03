@@ -12,6 +12,7 @@ from pathlib import Path
 
 import psycopg
 
+from etl_tuss.postgres_loader import UpsertResult
 from etl_tuss.release_extractor import extract_release
 from etl_tuss.release_loader import LoadReport, load_release
 
@@ -55,7 +56,17 @@ def _default_dsn() -> str:
 
 
 def _format_report(versao: str, report: LoadReport) -> str:
+    linhas = [
+        f"versao={versao} carregada:",
+        _format_line("termo", report.termo),
+        _format_line("medicamento", report.medicamento),
+        _format_line("opme", report.opme),
+    ]
+    return "\n".join(linhas)
+
+
+def _format_line(nome: str, resultado: UpsertResult) -> str:
     return (
-        f"versao={versao} carregada: "
-        f"termo={report.termo} medicamento={report.medicamento} opme={report.opme}"
+        f"  {nome}: {resultado.inserted} inseridas, "
+        f"{resultado.updated} atualizadas, {resultado.unchanged} inalteradas"
     )
